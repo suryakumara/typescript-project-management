@@ -65,6 +65,18 @@ class ProjectState extends State<Project> {
       ProjectStatus.Active
     );
     this.projects.push(newProject);
+    this.updateListeners();
+  }
+
+  moveProject(projectId: string, newStatus: ProjectStatus) {
+    const project = this.projects.find((prj) => prj.id === projectId);
+    if (project) {
+      project.status = newStatus;
+      this.updateListeners();
+    }
+  }
+
+  private updateListeners() {
     for (const listenerFn of this.listeners) {
       listenerFn(this.projects.slice());
     }
@@ -168,20 +180,22 @@ class ProjectItem extends Component<HTMLUListElement, HTMLLIElement> implements 
     }
   }
 
-  dragEndHandler(event: DragEvent): void {
-    console.log(event);
-  }
-
-  dragStartHandler(_: DragEvent): void {
-    console.log("DragEnd");
-  }
-
   constructor(hostId: string, project: Project) {
     super("single-project", hostId, false, project.id);
     this.project = project;
 
     this.configure();
     this.renderContent();
+  }
+
+  @autobind
+  dragStartHandler(event: DragEvent): void {
+    event.dataTransfer!.setData("text/plain", this.project.id);
+    event.dataTransfer!.effectAllowed = "move";
+  }
+
+  dragEndHandler(event: DragEvent): void {
+    const prjId = event.dataTransfer!.getData("text/plain");
   }
 
   @autobind
@@ -211,12 +225,22 @@ class ProjectList extends Component<HTMLDivElement, HTMLElement> implements Drag
   }
 
   @autobind
-  dragOverHandler(_: DragEvent): void {
-    const listEl = this.element.querySelector("ul")!;
-    listEl.classList.add("droppable");
+  dragOverHandler(event: DragEvent): void {
+    if (event.dataTransfer && event.dataTransfer.types[0] === "text/plain") {
+      event.preventDefault();
+      const listEl = this.element.querySelector("ul")!;
+      listEl.classList.add("droppable");
+    }
   }
 
-  dropHandler(_: DragEvent): void {}
+  @autobind
+  dropHandler(event: DragEvent): void {
+    const projId = event.dataTransfer!.getData("text/plain");
+    projectState.moveProject(
+      projId,
+      this.type === "active" ? ProjectStatus.Active : ProjectStatus.Finished
+    );
+  }
 
   @autobind
   dragLeaveHandler(_: DragEvent): void {
